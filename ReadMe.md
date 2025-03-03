@@ -528,6 +528,49 @@ Ajouter un nouveau tag à tous les produits d'une catégorie
 ```
 db.ecommerce_produits.updateMany(
         { categorie: {$eq: "Jeux"} },
-        { $set: { tags: "nouveau"}}
+        { $addToSet: { tags: "nouveau"}}
 )
+```
+
+Mettre à jour le stock après une vente
+
+```
+db.ecommerce_produits.updateMany(
+    {},
+    { $inc: { "stock.quantite": -1 } }
+)
+```
+
+### Exercice 4 : Requêtes complexes
+
+Trouver les produits disponibles avec tag1 et tag2
+
+```
+db.ecommerce_produits.find({
+    "stock.statut": "disponible",
+    tags: { $all: ["tag1", "tag2"] }
+})
+```
+
+Lister les produits premium avec un stock faible
+```
+db.ecommerce_produits.find({
+    tags: "premium",
+    "stock.quantite": {$lt: 5}
+})
+```
+
+Rechercher les produits ayant reçu au moins un avis 5 étoiles
+```
+db.ecommerce_produits.find({
+    avis: { $elemMatch: { note: 5 } }
+})
+```
+
+Trouver les produits d'une catégorie, trié par prix décroissant, timités aux 5 premier
+
+```
+db.ecommerce_produits.find({ categorie: "Jeux" })
+    .sort({ prix: -1 })
+    .limit(5)
 ```
