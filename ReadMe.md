@@ -61,7 +61,67 @@
 pour créer une collection il doit y avoir des données.
 
 
-## LES TP :
+## Cours Mardi après-midi Indexation, Agrégation et requette Géospatial
+
+### Indexation et Optimisation des performances
+
+#### Sans Indexation
+
+Performances linéaires O(n)
+
+Problématique sur les grande collections
+
+consomme beaucoup de ressource
+
+#### Avec Indexation
+
+Performances logarithmiques O(log n)
+
+Améliore drastiquement les requêtes
+
+Nécessaire pour mes app en prod
+
+### Types d'index
+
+* Index simple :
+impacte sur l'ordre de trie en sortie
+
+* Index composites : 
+index sur plusieurs champ en même temps
+
+* Index spécialisé
+on verra plus tard
+
+### Gestion des index
+
+1. création d'index
+
+2. les options :
+Background, unique, sparse, partialFilterExpression, name
+
+### Analyse des performances
+
+Mode d'explain()
+
+**Métrique à surveiller:**
+
+nReturned
+
+totalKeysExamined
+
+totalDOcsExamined
+
+ExecutionTimeMillis
+
+Stage
+
+* Index couvrants
+
+Quand un index contient tous les champs nécessaires
+
+* Index géospatiaux
+
+# LES TP :
 
 ## TP 2 : Manipulation de données avec les opérations CRUD
 
@@ -498,7 +558,7 @@ Trouver les produits dont le prix est entre 20€ et 30€
 
 lister les porduits en stock (stock >0)
 
-```db.ecommerce_produits.find({"stock.qunatite": {$gt: 0 }})```
+```db.ecommerce_produits.find({"stock.quantite": {$gt: 0 }})```
 
 Lister les porduits avec au moins 3 avis
 
@@ -535,8 +595,8 @@ db.ecommerce_produits.updateMany(
 Mettre à jour le stock après une vente
 
 ```
-db.ecommerce_produits.updateMany(
-    {},
+db.ecommerce_produits.updateOne(
+    {nom: "HandSnipper"},
     { $inc: { "stock.quantite": -1 } }
 )
 ```
@@ -587,7 +647,7 @@ db.ecommerce_produits.find({ categorie: "Jeux" })
 
 Insertion livres :
 
-```
+```bash
 db.livres.insertMany([
     {
         titre: "1984",
@@ -652,13 +712,29 @@ db.livres.insertMany([
         prix: 12.50,
         isbn: "9780142437247",
         date_ajout: new Date("2023-05-20")
+    },
+    {
+        titre: "Le Petit Prince",
+        auteur: "Antoine de Saint-Exupéry",
+        annee_publication: 1943,
+        editeur: "Gallimard",
+        genre: ["Conte", "Philosophie"],
+        nombre_pages: 96,
+        langue: "Français",
+        disponible: true,
+        stock: 5,
+        note_moyenne: 48,
+        description: "Un pilote d'avion, qui s'est écrasé dans le désert du Sahara, rencontre un jeune prince venu d'une autre planète...",
+        prix: 7.50,
+        isbn: "9782070612758",
+        date_ajout: new Date("2023-01-15")
     }
 ])
 ```
 
 Insertion utilisateurs :
 
-```
+```bash
 db.utilisateurs.insertMany([
 	{
 	  nom: "Mathieux",
@@ -822,3 +898,230 @@ db.utilisateurs.insertMany([
 
 ### Partie 6 : Modélisation de données (Mini-exercice)
 
+#### 6.1 Modèle embarqué vs référence
+
+1. 
+
+2. 
+````bash
+db.emprunts.insertMany([
+	{
+	  utilisateur_id: ObjectId("67c6b6824fcb73f58f466188"),
+	  livre_id: ObjectId("67c5d089b0e44d2765d0a17b"),
+	  date_emprunt: new Date("2025-03-03"),
+	  date_retour_prevue: new Date("2025-03-17"),
+	  date_retour_effective: null,
+	  statut: "en cours" // en cours, retourné, en retard
+	},
+	{
+	  utilisateur_id: ObjectId("67c6b6824fcb73f58f466189"),
+	  livre_id: ObjectId("67c5d089b0e44d2765d0a177"),
+	  date_emprunt: new Date("2025-03-02"),
+	  date_retour_prevue: new Date("2025-03-16"),
+	  date_retour_effective: null,
+	  statut: "en cours" // en cours, retourné, en retard
+	},
+	{
+	  utilisateur_id: ObjectId("67c6b6824fcb73f58f46618a"),
+	  livre_id: ObjectId("67c5d089b0e44d2765d0a178"),
+	  date_emprunt: new Date("2025-03-03"),
+	  date_retour_prevue: new Date("2025-03-17"),
+	  date_retour_effective: null,
+	  statut: "en cours" // en cours, retourné, en retard
+	}
+])
+````
+
+3. 
+Si les emprunts sont directement fait dans le document utilisateur alors cela veut dire que c'est un pattern "un-à-plusieurs" (Embarqué), ce modèle représente des avantages :
+
+Un seul accès pour les données : Toutes les informations sur l'utilisateur et ses emprunts sont stockées dans un seul document, ce qui permet de récupérer toutes les données en une seule requête.
+
+Atomicité des mises à jour, ce qui garantit la cohérence des données.
+
+Pas de jointure nécessaire, se qui améliore les performances de lecture
+
+Mais il a des limites :
+
+Taille max de document (16Mo, imposé par MongoDB).
+
+dépassement possible, se qui vas engendrer des problèmes de performances et de gestion.
+
+Difficulté de gestion des relations complexes.
+
+
+Alors que actuellement on vas utiliser un pattern "Plusieurs-à-plusieurs" (Référence), car on a une collection dédié à l'emprunts de livres se qui présente des avantages :
+
+Flexibilité et évolutivité, les données étant stockés dans une collection séparée permet de gérer un plus grand nombre d'emprunts sans taille max.
+
+les données sont maintenues à jour à un seul endroit ce qui facilite la mise à jour et la gestion des données.
+
+La gestion efficace des relations complexes.
+
+Il y a aussi des inconvénients :
+
+Les requêtes sont plus complexe, si on veut les informations d'un utilisateur il vas falloir utiliser des jointures.
+
+#### 6.2 Réflexion sur la modélisation
+
+2. Quelle approche privilégieriez-vous pour une application réelle et pourquoi ?
+
+Dans une application réel un modèle référencé semble être plus adapté pour plusieurs raison :
+La flexibilité et l'évolutivité des données, les emprunts étant stockés dans leur propre collection, on vas pouvoir les gérer sans se soucier de la taille maximal des documents.
+La facilité à ajouter/supprimer/modifier les emprunts sans directement toucher aux utilisateurs.
+
+Gestion efficace des relations complexes :
+Les relations entre les utilisateurs, les emprunts et les livres peuvent être gérées de manière plus flexible et évolutive.
+Les données sont maintenues à jour à un seul endroit, ce qui facilite la mise à jour et la gestion des données.
+
+Performance et scalabilité :
+Les collections séparées pour les utilisateurs et les emprunts permettent une meilleure distribution des données et une scalabilité horizontale plus facile.
+Les requêtes peuvent être optimisées avec des index appropriés sur les collections référencées.
+
+3. Comment modéliseriez-vous les cas où un même livre peut exister en plusieurs exemplaires ?
+
+j'aurais séparée les informations stock contenue dans la collection livres dans une nouvelle collection stock
+
+par exemple pour le petit prince :
+
+```
+db.livres.insertOne([
+    {
+        _id: ObjectId("67c5d089b0e44d2765d0a17b"),
+        titre: "Le Petit Prince",
+        auteur: "Antoine de Saint-Exupéry",
+        annee_publication: 1943,
+        editeur: "Gallimard",
+        genre: ["Conte", "Philosophie"],
+        nombre_pages: 96,
+        langue: "Français",
+        description: "Un pilote d'avion, qui s'est écrasé dans le désert du Sahara, rencontre un jeune prince venu d'une autre planète...",
+        prix: 7.50,
+        isbn: "9782070612758",
+        date_ajout: new Date("2023-01-15")
+    },  
+])
+```
+```
+db.stock.insertMany([
+    {
+        _id: ObjectId("67c6b6824fcb73f58f466188"),
+        livre_id: ObjectId("67c5d089b0e44d2765d0a17b"),
+        etat: "neuf",
+        disponible: true,
+        localisation: "Bibliothèque"
+    },
+    {
+        _id: ObjectId("67c6b6824fcb73f58f466189"),
+        livre_id: ObjectId("67c5d089b0e44d2765d0a17b"),
+        etat: "bon",
+        disponible: true,
+        localisation: "Stock"
+    }
+])
+```
+
+```
+db.emprunts.insertMany([
+    {
+        utilisateur_id: ObjectId("67c6b6824fcb73f58f466188"),
+        exemplaire_id: ObjectId("67c6b6824fcb73f58f466188"),
+        date_emprunt: new Date("2025-03-03"),
+        date_retour_prevue: new Date("2025-03-17"),
+        date_retour_effective: null,
+        statut: "en cours" // en cours, retourné, en retard
+    },
+    {
+        utilisateur_id: ObjectId("67c6b6824fcb73f58f466189"),
+        exemplaire_id: ObjectId("67c6b6824fcb73f58f466189"),
+        date_emprunt: new Date("2025-03-02"),
+        date_retour_prevue: new Date("2025-03-16"),
+        date_retour_effective: null,
+        statut: "en cours" 
+    }
+])
+```
+
+
+## TP MongoDB - Indexation, Géospatial et Agrégation
+
+### TP1 : Indexation et Optimisation des performances
+
+#### Exercice 1.1 Préparation et analyse des performances sans index
+
+1. Pour ajouter les 1000 documents dans ma collection livre j'ai utilisé ce script sur mangosh :
+
+```bash
+const auteurs = ["Herman Melville", "Jane Austen", "George Orwell", "Mark Twain", "J.K. Rowling"];
+const titres = ["Moby-Dick", "Pride and Prejudice", "1984", "Adventures of Huckleberry Finn", "Harry Potter"];
+const editeurs = ["Harper & Brothers", "T. Egerton", "Secker & Warburg", "Chatto & Windus", "Bloomsbury"];
+const genres = [["Roman", "Aventure"], ["Roman", "Romance"], ["Dystopie", "Science-fiction"], ["Roman", "Aventure"], ["Fantaisie"]];
+const langues = ["Anglais", "Français", "Espagnol", "Allemand", "Italien"];
+
+function getRandomElement(arr) {
+    return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function getRandomInt(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+const documents = [];
+for (let i = 0; i < 1000; i++) {
+    const auteur = getRandomElement(auteurs);
+    const titre = getRandomElement(titres);
+    const editeur = getRandomElement(editeurs);
+    const genre = getRandomElement(genres);
+    const langue = getRandomElement(langues);
+    const annee_publication = getRandomInt(1800, 2025);
+    const nombre_pages = getRandomInt(100, 1000);
+    const stock = getRandomInt(1, 50);
+    const note_moyenne = parseFloat((Math.random() * 5).toFixed(1));
+    const prix = parseFloat((Math.random() * 50).toFixed(2));
+    const date_ajout = new Date();
+
+    documents.push({
+        titre: titre,
+        auteur: auteur,
+        annee_publication: annee_publication,
+        editeur: editeur,
+        genre: genre,
+        nombre_pages: nombre_pages,
+        langue: langue,
+        disponible: true,
+        stock: stock,
+        note_moyenne: note_moyenne,
+        description: `Description for ${titre}`,
+        prix: prix,
+        isbn: `978-${getRandomInt(1000000000, 9999999999)}`,
+        date_ajout: date_ajout
+    });
+}
+
+db.livres.insertMany(documents);
+```
+
+2. Analyse des performances des requêtes sans index :
+
+pour un titre exact :
+
+`db.livres.explain("executionStats").find({ titre: "Moby-Dick" })` 
+
+nReturned: 193,
+executionTimeMillis: 0,
+totalKeysExamined: 0,
+totalDocsExamined: 1005,
+
+
+pour un auteur :
+
+`db.livres.explain("executionStats").find({ auteur: "George Orwell" })`
+
+nReturned: 203,
+executionTimeMillis: 0,
+totalKeysExamined: 0,
+totalDocsExamined: 1005
+
+Pour une plage de prix (10€ et 20€) et note minimale
+
+`db.livres.explain("executionStats").find({ auteur: "George Orwell" })`
