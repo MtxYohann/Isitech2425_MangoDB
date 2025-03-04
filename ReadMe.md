@@ -567,10 +567,258 @@ db.ecommerce_produits.find({
 })
 ```
 
-Trouver les produits d'une catégorie, trié par prix décroissant, timités aux 5 premier
+Trouver les produits d'une catégorie, trié par prix décroissant, limités aux 5 premier
 
 ```
 db.ecommerce_produits.find({ categorie: "Jeux" })
     .sort({ prix: -1 })
     .limit(5)
 ```
+
+## TP 3 SIMPLIFIÉ MONGODB - JOUR 1 : GESTION D'UNE BIBLIOTHÈQUE
+
+### Partie 1 Configuration et création de la base de données
+
+#### 1.1 Configuration de l'environnement
+
+![configuration environnement](/img/biblio.jpg)
+
+#### 1.2 Insertion de documents (Create)
+
+Insertion livres :
+
+```
+db.livres.insertMany([
+    {
+        titre: "1984",
+        auteur: "George Orwell",
+        annee_publication: 1949,
+        editeur: "Secker & Warburg",
+        genre: ["Dystopie", "Science-fiction"],
+        nombre_pages: 328,
+        langue: "Anglais",
+        disponible: true,
+        stock: 5,
+        note_moyenne: 4.7,
+        description: "Un roman dystopique qui explore les dangers du totalitarisme et de la surveillance de masse.",
+        prix: 9.99,
+        isbn: "9780451524935",
+        date_ajout: new Date("2023-02-10")
+    },
+    {
+        titre: "Pride and Prejudice",
+        auteur: "Jane Austen",
+        annee_publication: 1813,
+        editeur: "T. Egerton",
+        genre: ["Roman", "Romance"],
+        nombre_pages: 279,
+        langue: "Anglais",
+        disponible: true,
+        stock: 7,
+        note_moyenne: 4.6,
+        description: "Un classique de la littérature anglaise qui explore les thèmes de l'amour et des préjugés sociaux.",
+        prix: 8.50,
+        isbn: "9780141439518",
+        date_ajout: new Date("2023-03-05")
+    },
+    {
+        titre: "To Kill a Mockingbird",
+        auteur: "Harper Lee",
+        annee_publication: 1960,
+        editeur: "J.B. Lippincott & Co.",
+        genre: ["Roman", "Drame"],
+        nombre_pages: 281,
+        langue: "Anglais",
+        disponible: true,
+        stock: 4,
+        note_moyenne: 4.9,
+        description: "Un roman poignant sur les injustices raciales dans le sud des États-Unis, vu à travers les yeux d'une jeune fille.",
+        prix: 10.99,
+        isbn: "9780061120084",
+        date_ajout: new Date("2023-04-12")
+    },
+    {
+        titre: "Moby-Dick",
+        auteur: "Herman Melville",
+        annee_publication: 1851,
+        editeur: "Harper & Brothers",
+        genre: ["Roman", "Aventure"],
+        nombre_pages: 635,
+        langue: "Anglais",
+        disponible: true,
+        stock: 2,
+        note_moyenne: 4.3,
+        description: "L'histoire épique de la quête obsessionnelle du capitaine Achab pour capturer la baleine blanche Moby Dick.",
+        prix: 12.50,
+        isbn: "9780142437247",
+        date_ajout: new Date("2023-05-20")
+    }
+])
+```
+
+Insertion utilisateurs :
+
+```
+db.utilisateurs.insertMany([
+	{
+	  nom: "Mathieux",
+	  prenom: "Yohann",
+	  email: "yohann.mathieux@gmail.com",
+	  age: 20,
+	  adresse: {
+		rue: "40 route de soucieu",
+		ville: "Saint Laurent-d'agny",
+		code_postal: "69440"
+	  },
+	  date_inscription: new Date("2025-03-03"),
+	  livres_empruntes: [
+		{
+		  livre_id: ObjectId("67c5d089b0e44d2765d0a17b"),
+		  titre: "Le Petit Prince",
+		  date_emprunt: new Date("2025-03-03"),
+		  date_retour_prevue: new Date("2025-03-17")
+		}
+	  ],
+	  tags: ["Aventure", "Conte"]
+	},
+	{
+	  nom: "Nova",
+	  prenom: "Arthur",
+	  email: "arhur.nova@gmail.com",
+	  age: 20,
+	  adresse: {
+		rue: "8 impasse des sources",
+		ville: "Saint martin en haut",
+		code_postal: "69850"
+	  },
+	  date_inscription: new Date("2025-01-23"),
+	  livres_empruntes: [
+		{
+		  livre_id: ObjectId("67c5d089b0e44d2765d0a177"),
+		  titre: "1984",
+		  date_emprunt: new Date("2025-03-02"),
+		  date_retour_prevue: new Date("2025-03-16")
+		}
+	  ],
+	  tags: ["Histoire", "Science-fiction"]
+	},
+	{
+	  nom: "Girardet",
+	  prenom: "Maxime",
+	  email: "maxime.girardet@gmail.com",
+	  age: 20,
+	  adresse: {
+		rue: "25 chemin du pré poulet",
+		ville: "Montagny",
+		code_postal: "69700"
+	  },
+	  date_inscription: new Date("2025-02-03"),
+	  livres_empruntes: [
+		{
+		  livre_id: ObjectId("67c5d089b0e44d2765d0a178"),
+		  titre: "Pride and Prejudice",
+		  date_emprunt: new Date("2025-03-03"),
+		  date_retour_prevue: new Date("2025-03-17")
+		}
+	  ],
+	  tags: ["Romance", "Conte"]
+	}
+])
+```
+
+
+### Partie 2 : Requêtes de lecture (Read)
+
+1. ``db.livres.find({disponible: {$eq: true }})``
+
+2. ``db.livres.find({annee_publication: {$gt: 2000}})``
+
+3. ``db.livres.find({auteur: {$eq: "Antoine de Saint-Exupéry" }})``
+
+4. ``db.livres.find({note_moyenne: {$gt: 4 }})``
+
+5. ``db.utilisateurs.find({"adresse.ville": {$eq: "Saint Laurent-d'agny" }})``
+
+6. ``db.livres.find({genre: "Romance"})``
+
+7. ``db.livres.find({prix: {$lt: 15}, note_moyenne: {$gt: 4 }})``
+
+8. ``db.utilisateurs.find({
+    livres_empruntes: {
+        $elemMatch: { titre: "Le Petit Prince" }
+    }
+})``
+
+### Partie 3 : Mise à jour de documents (Update)
+
+1. ``db.livres.updateOne({titre: "1984"},  {$set: {titre: "1985"}})``
+
+2. ``db.livres.updateMany({},{$set: {stock: 5}})``
+
+3. ``db.livres.updateOne({titre: "1985"}, {$set: {disponible: false}})``
+
+4.
+```db.utilisateurs.updateOne(
+        {nom: "Nova"},
+        {$push: { 
+            livres_empruntes: {
+                livre_id: ObjectId("67c5d089b0e44d2765d0a17a"),
+                titre: "Moby-Dick",
+                date_emprunt: new Date("2025-03-04"),
+                date_retour_prevue: new Date("2025-03-18")
+            }
+        }
+    })
+```
+ 
+
+5. 
+```db.utilisateurs.updateOne(
+        {nom: "Nova"},
+        { 
+            $set: { 
+                adresse: {
+                    rue: "10 impasse des sources",
+                    ville: "Saint martin en haut",
+                    code_postal: "69850"
+                }
+            }
+        }
+        )
+```
+
+6. ``db.utilisateurs.updateOne({nom: "Mathieux"}, {$push: {tags: "Histoire"}})``
+
+7. ``db.livres.updateOne({titre: "1985"}, {$set: {note_moyenne: 4.8}})``
+
+### Partie 4 : Suppression de documents (Delete)
+
+1. ``db.livres.deleteOne({titre: "1985"})``
+
+2. ``db.livres.deleteMany({auteur: "George Orwell"})``
+
+3. ``db.utilisateurs.deleteOne({email: "yohann.mathieux@gmail.com"})``
+
+### Partie 5 : Requêtes avancées et projection
+
+1. ``db.livres.find().sort({note_moyenne: -1})``
+
+2. ``db.livres.find().sort({annee_publication: 1}).limit(3)``
+
+3. ``db.livres.countDocuments({auteur: "George Orwell"})``
+
+4. ``db.livres.find(
+    {},
+    { _id: 0, titre: 1, auteur: 1, note_moyenne: 1 }
+)``
+
+5. ``db.utilisateurs.find({ $expr: {$gte: [{ $size: "$livres_empruntes" }, 1] }})``
+
+6. ``db.livres.find({
+    titre: { $regex: "Prince" }
+})``
+
+7. ``db.livres.find({prix: {$gt: 10, $lt: 20 }})``
+
+### Partie 6 : Modélisation de données (Mini-exercice)
+
