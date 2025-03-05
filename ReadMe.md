@@ -61,7 +61,7 @@
 pour créer une collection il doit y avoir des données.
 
 
-## Cours Mardi après-midi Indexation, Agrégation et requette Géospatial
+## Cours Mardi après-midi Indexation, Agrégation et requête Géospatial
 
 ### Indexation et Optimisation des performances
 
@@ -1248,3 +1248,223 @@ db.livres.createIndex(
 
 On utilise un index composite, on peut observé une différence : Avant index 98ms, Après 48ms.
 
+#### Exercice 1.3 Index spécialisés
+
+**Création d'un index spécialisé sur les champs titre et description**
+
+```bash
+db.livres.createIndex(
+    { titre: "text", description: "text" },
+    { 
+        background: true,
+        name: "idx_texte_titre_description"
+    }
+)
+```
+
+Test avec la commande:
+
+`db.livres.explain("executionStats").find({ $text: { $search: "Moby" } })`
+
+Analyse des performances
+
+| Stage       | nReturned | Execution Time (ms) | Total Keys Examined | Total Docs Examined |
+|-------------|-----------|---------------------|----------------------|---------------------|
+| TEXT_MATCH / FETCH / IXSCAN  | 19992     | 34                  | 19992                | 19992               |
+
+
+**Création de la nouvelle collection sessions_utilisateurs et insert des documents :**
+
+```bash
+const utilisateurs = [
+    ObjectId("67c6b6824fcb73f58f466188"),
+    ObjectId("67c6b6824fcb73f58f466189"),
+    ObjectId("67c6b6824fcb73f58f46618a"),
+];
+
+function getRandomElement(arr) {
+    return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function getRandomDate(start, end) {
+    return new Date(start.getTime() + Math.random() * (end.getTime() - start.getTime()));
+}
+
+const sessions = [];
+for (let i = 0; i < 200; i++) {
+    const utilisateur_id = getRandomElement(utilisateurs);
+    const date_derniere_activite = getRandomDate(new Date(2025, 0, 1), new Date(2025, 11, 31));
+    const donnees_session = {
+        ip: `192.168.1.${Math.floor(Math.random() * 255)}`,
+        navigateur: getRandomElement(["Chrome", "Firefox", "Safari", "Edge"]),
+        os: getRandomElement(["Windows", "macOS", "Linux", "Android", "iOS"]),
+        duree: Math.floor(Math.random() * 3600) 
+    };
+
+    sessions.push({
+        utilisateur_id: utilisateur_id,
+        date_derniere_activite: date_derniere_activite,
+        donnees_session: donnees_session
+    });
+}
+
+db.sessions_utilisateurs.insertMany(sessions);
+```
+
+**Création d'un index TTL pour supprimer automatiquement les sessions après 30min d'inactivité.**
+
+````
+db.sessions_utilisateurs.createIndex(
+    { date_derniere_activite: 1 },
+    { expireAfterSeconds: 1800 }
+)
+````
+
+#### Exercice 1.4 Optimisation avancées
+
+**Création de l'index couvrants**
+
+```bash
+db.livres.createIndex(
+    { auteur: 1, annee_publication: 1, titre: 1, note_moyenne: 1 },
+    { 
+        background: true,
+        name: "idx_couvrant_auteur_annee_titre_note"
+    }
+)
+```
+
+On vas vérifier que l'index couvrants est bien utilisé :
+
+```bash
+db.livres.find(
+    { auteur: "George Orwell", annee_publication: { $gte: 1900 } },
+    { _id: 0, titre: 1, note_moyenne: 1 }
+).explain("executionStats")
+```
+
+Statistique :
+
+| Stage       | nReturned | Execution Time (ms) | Total Keys Examined | Total Docs Examined |
+|-------------|-----------|---------------------|----------------------|---------------------|
+| PROJECTION_COVERED / IXSCAN / PROJECTION_SIMPLE / FETCH / IXSCAN | 11162     | 14                  | 11162                | 0               |
+
+On voit que l'index couvrants à bien été utilisé grâce au Stage utilisé et le nombre de documents examiné est à 0.
+
+
+**Création de l'index unique pour le champ ISBN**
+
+```bash
+db.livres.createIndex(
+  { isbn: 1 },
+  { 
+    background: true,
+    unique: true,
+    sparse: false,
+    name: "idx_isbn"
+  }
+)
+```
+![liste index](/img/isbn.jpg)
+
+On voit bien que l'index est actif je vais donc essayer d'insérer un livre avec un isbn déjà éxistant :
+
+```bash
+db.livres.insertOne(
+    {
+        titre: "Pride and Prejudice",
+        auteur: "Jane Austen",
+        annee_publication: 1813,
+        editeur: "T. Egerton",
+        genre: ["Roman", "Romance"],
+        nombre_pages: 279,
+        langue: "Anglais",
+        disponible: true,
+        stock: 7,
+        note_moyenne: 4.6,
+        description: "Un classique de la littérature anglaise qui explore les thèmes de l'amour et des préjugés sociaux.",
+        prix: 8.50,
+        isbn: "978-5247575858",
+        date_ajout: new Date("2023-03-05")
+    }
+)
+```
+
+![erreur isbn](/img/erreur_isbn.jpg)
+
+#### Livrable TP 1
+
+1. j'ai déjà répondu tout au long du TP
+
+2. 
+
+Quelles améliorations de performance avez-vous observées après l'ajout d'index ?
+
+Après l'ajout des index simple, composite et couvrants on peut observé des améliorations dans la rapidité d'éxécution des requêtes alors que nous n'avons pas créer des index très complexe(sur 1 ou 2 champs).
+
+Quels types d'index ont été les plus efficaces pour vos requêtes ?
+
+On peut observé que plus les index était complexes plus il y avait un gain de temps.
+Si je prend l'exemple de mon index `idx_genre_langue_note_moyenne` on voit que la requête prend 2 fois moins de temps que sans index.
+
+Avez-vous identifié des compromis entre performance de lecture et d'écriture ?
+
+L'utisation d'index permet effectivement de gagner des performance sur la lecture, mais lors de l'écriture ils peuvent créer des latence car ils sont mise à jour à chaque écriture (ajout/modif/suppression).
+
+Comment choisiriez-vous les index pour une application de bibliothèque en production ?
+**Répondre à la fin**
+
+### TP2 Requêtes Géospatial
+
+#### Exercice 2.1 Enrichissement des données
+
+
+**Mise à jour de la collection utilisateurs**
+
+![mise à jour collection utilisateur](/img/collection_utilisateurs.jpg)
+
+**Création de la collection bibliothèques**
+
+![Création collection bibliothèque](/img/collection_biblio.jpg)
+
+
+**Création des index géospatiaux**
+
+```bash
+db.utilisateurs.createIndex(
+    { "adresse.localisation": "2dsphere" },
+    { name: "idx_localisation_utilisateurs" }
+)
+```
+
+```bash
+db.bibliotheques.createIndex(
+    { "adresse.localisation": "2dsphere" },
+    { name: "idx_localisation_bibliotheques" }
+)
+
+```
+
+```bash
+db.bibliotheques.createIndex(
+    { "zone de service": "2dsphere" },
+    { name: "idx_zone_service_bibliotheques" }
+)
+```
+
+#### Exercices 2.2 Requêtes géospatiales avancées
+
+1. Trouver les 5 utilisateurs les plus proche du point dans une limite de 5km
+```bash
+db.utilisateurs.find({
+  "adresse.localisation": {
+    $near: {
+      $geometry: {
+        type: "Point",
+        coordinates: [45.676021, 4.761109] 
+      },
+      $maxDistance: 5000
+    }
+  }
+}).limit(5)
+```
