@@ -1051,6 +1051,10 @@ db.emprunts.insertMany([
 
 1. Pour ajouter les 1000 documents dans ma collection livre j'ai utilisé ce script sur mangosh :
 
+1000 documents ne me semble pas assais pour voir les réel performances sans index je vais donc passer à 10 000 et refaire les commandes.
+
+Je vais essayer avec 100 000 pour avoir plusieurs stats et bien se rendre compte
+
 ```bash
 const auteurs = ["Herman Melville", "Jane Austen", "George Orwell", "Mark Twain", "J.K. Rowling"];
 const titres = ["Moby-Dick", "Pride and Prejudice", "1984", "Adventures of Huckleberry Finn", "Harry Potter"];
@@ -1067,7 +1071,7 @@ function getRandomInt(min, max) {
 }
 
 const documents = [];
-for (let i = 0; i < 1000; i++) {
+for (let i = 0; i < 90000; i++) {
     const auteur = getRandomElement(auteurs);
     const titre = getRandomElement(titres);
     const editeur = getRandomElement(editeurs);
@@ -1107,21 +1111,140 @@ pour un titre exact :
 
 `db.livres.explain("executionStats").find({ titre: "Moby-Dick" })` 
 
-nReturned: 193,
-executionTimeMillis: 0,
-totalKeysExamined: 0,
-totalDocsExamined: 1005,
+| Stage       | nReturned | Execution Time (ms) | Total Keys Examined | Total Docs Examined |
+|-------------|-----------|---------------------|----------------------|---------------------|
+| COLLSCAN    | 193       | 0                   | 0                    | 1005                |
+| COLLSCAN    | 2019      | 5                   | 0                    | 10000               |
+| COLLSCAN    | 19992     | 55                  | 0                    | 100000              |
 
 
 pour un auteur :
 
 `db.livres.explain("executionStats").find({ auteur: "George Orwell" })`
 
-nReturned: 203,
-executionTimeMillis: 0,
-totalKeysExamined: 0,
-totalDocsExamined: 1005
+| Stage       | nReturned | Execution Time (ms) | Total Keys Examined | Total Docs Examined |
+|-------------|-----------|---------------------|----------------------|---------------------|
+| COLLSCAN    | 203       | 0                   | 0                    | 1005                |
+| COLLSCAN    | 1986      | 5                   | 0                    | 10000               |
+| COLLSCAN    | 19823     | 58                  | 0                    | 100000              |
+
 
 Pour une plage de prix (10€ et 20€) et note minimale
 
-`db.livres.explain("executionStats").find({ auteur: "George Orwell" })`
+`db.livres.explain("executionStats").find({
+    $and: [
+        { prix: { $gt: 10, $lt: 20 } },
+        { note_moyenne: { $gte: 4 } }
+    ]
+})`
+
+| Stage       | nReturned | Execution Time (ms) | Total Keys Examined | Total Docs Examined |
+|-------------|-----------|---------------------|----------------------|---------------------|
+| COLLSCAN    | 52        | 0                   | 0                    | 1005                |
+| COLLSCAN    | 405       | 16                  | 0                    | 10000               |
+| COLLSCAN    | 4198      | 85                  | 0                    | 100000              |
+
+
+Pour une recherche filtrée par genre et langue avec tri par note décroissante
+
+``db.livres.explain("executionStats").find({genre: "Roman",langue: "Espagnol"}).sort({note_moyenne: -1})``
+
+| Stage       | nReturned | Execution Time (ms) | Total Keys Examined | Total Docs Examined |
+|-------------|-----------|---------------------|----------------------|---------------------|
+| SORT / COLLSCAN| 125    | 1                   | 0                    | 1005                |
+| SORT / COLLSCAN| 2019   | 10                  | 0                    | 10000               |
+| SORT / COLLSCAN| 19992  | 98                  | 0                    | 100000              |
+
+
+#### Exercice 1.2 Création d'index simple et composites
+
+**Création d'un index simple (idx_titre):** 
+
+```bash
+db.livres.createIndex(
+    { titre: 1 },
+    { 
+        background: true,
+        sparse: false,
+        name: "idx_titre"
+    }
+)
+```
+
+éxécution de la commande `db.livres.explain("executionStats").find({ titre: "Moby-Dick" })` pour avoir les stats
+
+| Stage       | nReturned | Execution Time (ms) | Total Keys Examined | Total Docs Examined |
+|-------------|-----------|---------------------|----------------------|---------------------|
+| FETCH / IXSCAN  | 19992     | 29                  | 19992                | 19992               |
+
+
+On aperçoit une net amélioration des performances d'éxécution : Avant index 55ms, Après index 29ms. Alors oui c'est pas beaucoup 55ms mais c'est pour un jeu de donner de 100K documents et un index simple, on voit déjà la différence entre les deux
+On peut aussi voir que les stage utilisé ne sont pas les mêmes, on avait un COLLSCAN sans index et avec l'utilisation de l'index simple on utilise le FETCH et IXSCAN.
+
+**Création d'un index simple (idx_auteur):** 
+
+```bash
+db.livres.createIndex(
+    { auteur: 1 },
+    { 
+        background: true,
+        sparse: false,
+        name: "idx_auteur"
+    }
+)
+```
+
+éxécution de la commande `db.livres.explain("executionStats").find({ auteur: "George Orwell" })` pour avoir les stats
+
+| Stage       | nReturned | Execution Time (ms) | Total Keys Examined | Total Docs Examined |
+|-------------|-----------|---------------------|----------------------|---------------------|
+| FETCH / IXSCAN  | 19823     | 30                  | 19923                | 19823               |
+
+Même condition, c'est juste le critaire de recherche qui change, utilisation d'un index simple donc on voit aussi une amélioration et un changement d'utilisation de stage.
+
+
+
+**Création d'un index composite (idx_prix_note_moyenne):** 
+
+```bash
+db.livres.createIndex(
+    { prix: 1, note_moyenne: 1 },
+    { 
+        background: true,
+        sparse: false,
+        name: "idx_prix_note_moyenne"
+    }
+)
+```
+
+éxécution de la commande `db.livres.explain("executionStats").find({$and: [{ prix: { $gt: 10, $lt: 20 } },{ note_moyenne: { $gte: 4 } }]})` pour avoir les stats
+
+| Stage       | nReturned | Execution Time (ms) | Total Keys Examined | Total Docs Examined |
+|-------------|-----------|---------------------|----------------------|---------------------|
+| FETCH / IXSCAN  | 4198     | 16                  | 5198                | 4198               |
+
+On utilise un index composite et la on peut observé une différence qui continue d'acroitre : Avant index 85 ms, Après 16ms.
+L'utilisation de l'index composite avec 100K documents obtient les mêmes résultat que sans index mais avec 10K documents.
+
+
+**Création d'un index composite (idx_genre_langue_note_moyenne):** 
+
+```bash
+db.livres.createIndex(
+    { genre: 1, langue: 1, note_moyenne: -1 },
+    { 
+        background: true,
+        sparse: false,
+        name: "idx_genre_langue_note_moyenne"
+    }
+)
+```
+
+éxécution de la commande `db.livres.explain("executionStats").find({genre: "Roman",langue: "Espagnol"}).sort({note_moyenne: -1})` pour avoir les stats
+
+| Stage       | nReturned | Execution Time (ms) | Total Keys Examined | Total Docs Examined |
+|-------------|-----------|---------------------|----------------------|---------------------|
+| FETCH / IXSCAN  | 11979     | 48                  | 11979                | 11979               |
+
+On utilise un index composite, on peut observé une différence : Avant index 98ms, Après 48ms.
+
