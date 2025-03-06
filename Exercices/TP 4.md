@@ -620,3 +620,95 @@ db.livraisons.find({
   }
 })
 ```
+
+
+### TP3 Framework d'agrégation
+
+#### Exercice 3.1 Agrégation de base
+
+1. Création d'un pipeline d'agrégation pour calculer les statistiques suivantes par genre de livre.
+
+```bash
+db.livres.aggregate([
+  {
+    $unwind: "$genre"
+  },
+  {
+    $group: {
+      _id: "$genre", 
+      nombre_de_livres: { $sum: 1 }, 
+      note_moyenne: { $avg: "$note_moyenne" }, 
+      prix_moyen: { $avg: "$prix" },
+      prix_minimum: { $min: "$prix" }, 
+      prix_maximum: { $max: "$prix" } 
+    }
+  },
+  {
+    $project: {
+      _id: 0, 
+      genre: "$_id", 
+      nombre_de_livres: 1,
+      note_moyenne: 1,
+      prix_moyen: 1,
+      prix_minimum: 1,
+      prix_maximum: 1
+    }
+  }
+])
+```
+
+2. Analysez la répartition des livres par éditeur.
+
+
+```bash
+db.livres.aggregate([
+  {
+    $unwind: "$editeur"
+  },
+  {
+    $group: {
+      _id: "$editeur", 
+      nombre_de_livres: { $sum: 1 }, 
+      genres: { $addToSet: "$genre" },
+      auteurs: { $addToSet: "$auteur" },
+      note_moyenne: { $avg: "$prix"} 
+    }
+  },
+  {
+    $project: {
+      _id: 0, 
+      editeur: "$_id", 
+      nombre_de_livres: 1,
+      note_moyenne: 1,
+      nombre_de_genres: { $size: "$genres" },
+      nombre_auteurs: { $size: "$auteurs" }
+    }
+  }
+])
+```
+
+3. Créez un pipeline d'agrégation pour analyser les habitudes d'emprunt par ville d'utilisateur.
+
+```bash
+db.utilisateurs.aggregate([
+  {
+    $unwind: "$livres_empruntes"
+  },
+  {
+    $group: {
+      _id: "$adresse.ville", 
+      nombre_emprunts: { $sum: 1 }, 
+      utilisateurs: { $addToSet: "$_id"}
+    }
+  },
+  {
+    $project: {
+      _id: 0, 
+      ville: "$_id", 
+      nombre_emprunts: 1,
+      nombre_utilisateurs: { $size: "$utilisateurs" }, 
+    }
+  }
+])
+```
+
