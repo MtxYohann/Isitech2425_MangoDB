@@ -1452,9 +1452,10 @@ db.bibliotheques.createIndex(
 )
 ```
 
-#### Exercices 2.2 Requêtes géospatiales avancées
+#### Exercice 2.2 Requêtes géospatiales avancées
 
-1. Trouver les 5 utilisateurs les plus proche du point dans une limite de 5km
+1. Trouver les 5 utilisateurs les plus proche du point dans une limite de 5km.
+
 ```bash
 db.utilisateurs.find({
   "adresse.localisation": {
@@ -1467,4 +1468,109 @@ db.utilisateurs.find({
     }
   }
 }).limit(5)
+```
+
+2. Trouvez les bibliothèques les plus proches d'un utilisateur spécifique.
+
+utilisation d'une agrégation avec : 
+
+$match pour trouver l'utilisateur
+
+$lookup pour faire la jointure avec la collection bibliotheques, cotient notre jointure et une variable pour les coordonnées de l'utilisateur.
+Ensuite notre pipeline ou l'on vas utiliser $geoNear pour trouver les bibliotheques les plus proches de notre utilisateurs, le champ key est obligatoir car j'ai plusieur index géospatial de type 2dsphere.
+
+j'impose ensuite une limite de 3 pour limiter le nombre de bibliotheques en sortie.
+
+et pour finir le $project pour choisir les données en sortie.
+
+```bash
+db.utilisateurs.aggregate([
+    {
+        $match: {
+            nom: "Mathieux"
+        }
+    },
+    {
+        $lookup: {
+            from: "bibliotheques",
+            let: {userLocation: "$adresse.localisation"},
+            pipeline: [
+                {
+                    $geoNear: {
+                        near: "$$userLocation",
+                        distanceField: "distance",
+                        spherical: true,
+                        maxDistance: 10000,
+                        key: "adresse.localisation"
+                    }
+                },
+                {$limit: 3}
+            ],
+            as: "bibliotheques_proches"
+        }
+
+    },
+    {
+        $project: {
+            _id: 0,
+            nom: 1,
+            bibliotheques_proches: 1
+        }
+    }
+])
+```
+
+3.  Utilisez l'opérateur $geoNear dans un pipeline d'agrégation pour obtenir les bibliothèques triées par distance et calculer précisément cette distance (en km).
+
+
+
+```bash
+db.bibliotheques.aggregate([
+  {
+    $geoNear: {
+      near: { type: "Point", coordinates: [45.641307, 4.685405] }, // Pas de point précis dans la consigne on peut mettre celui que l'on veut
+      distanceField: "distance",
+      spherical: true, 
+      distanceMultiplier: 0.001, 
+      maxDistance: 5000, 
+      key: "adresse.localisation" 
+    }
+  },
+  {
+    $project: {
+      _id: 0,
+      nom: 1,
+      adresse: 1,
+      distance: 1 
+    }
+  },
+  {
+    $sort: { distance: 1 } 
+  }
+])
+```
+
+#### Exercice 2.3 Requêtes géospatial avancées
+
+1. Utilisez $geoWithin pour trouver tous les utilisateurs à l'intérieur d'une zone définie par un polygone
+
+Utilisation de keplet pour avoir es coordonnées du polygon beaucoup plus facilement
+(il faut que l'utilisateur sois dans le polygon sinon pas de résultat)
+
+
+```bash
+db.utilisateurs.find({
+  "adresse.localisation": {
+    $geoWithin: {
+        $geometry: {
+            type: "Polygon",
+            coordinates:[
+                [
+                    [4.64865625499346,45.596342557268066],[4.863261865698382,45.69821440153976],[4.683616201253452,45.76465773710486],[4.588082090681525,45.67838690792586],[4.64865625499346,45.596342557268066]
+                ]
+            ]
+        }
+    }
+  }
+})
 ```
